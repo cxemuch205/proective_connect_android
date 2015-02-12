@@ -3,39 +3,26 @@ package net.touchabillion.proectiverds;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.annotation.TargetApi;
-import android.app.Activity;
-import android.app.LoaderManager.LoaderCallbacks;
-import android.content.ContentResolver;
-import android.content.CursorLoader;
-import android.content.Loader;
-import android.database.Cursor;
-import android.net.Uri;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.AsyncTask;
-import android.os.Build.VERSION;
 import android.os.Build;
 import android.os.Bundle;
-import android.provider.ContactsContract;
 import android.support.v7.app.ActionBarActivity;
 import android.text.TextUtils;
-import android.view.KeyEvent;
 import android.view.View;
 import android.view.View.OnClickListener;
-import android.view.inputmethod.EditorInfo;
-import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.TextView;
 
 import com.android.volley.Response;
 import com.android.volley.VolleyError;
 
 import net.touchabillion.contenttools.Api.Api;
+import net.touchabillion.contenttools.Constants.App;
 import net.touchabillion.contenttools.Models.LoginData;
 import net.touchabillion.contenttools.Tools;
-
-import java.util.ArrayList;
-import java.util.List;
 
 
 /**
@@ -54,11 +41,13 @@ public class LoginActivity extends ActionBarActivity{
     private View mProgressView;
     private View mLoginFormView;
     private Api api;
+    private SharedPreferences prefs;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
+        prefs = getSharedPreferences(App.Pref.NAME, MODE_PRIVATE);
 
         // Set up the login form.
         mEmailView = (AutoCompleteTextView) findViewById(R.id.email);
@@ -86,6 +75,11 @@ public class LoginActivity extends ActionBarActivity{
         mLoginFormView = findViewById(R.id.email_login_form);
         mProgressView = findViewById(R.id.login_progress);
         api = new Api(this);
+
+        boolean userIsLogined = prefs.getBoolean(App.Pref.USER_IS_LOGGED, false);
+        if (userIsLogined) {
+            openHome();
+        }
     }
 
     /**
@@ -221,7 +215,9 @@ public class LoginActivity extends ActionBarActivity{
             showProgress(false);
 
             if (success) {
-                finish();
+                //TODO: remove comment
+                //prefs.edit().putBoolean(App.Pref.USER_IS_LOGGED, success).apply();
+                openHome();
             } else {
                 mPasswordView.setError(getString(R.string.error_incorrect_password));
                 mPasswordView.requestFocus();
@@ -233,6 +229,12 @@ public class LoginActivity extends ActionBarActivity{
             mAuthTask = null;
             showProgress(false);
         }
+    }
+
+    private void openHome() {
+        finish();
+        Intent openHome = new Intent(this, HomeActivity.class);
+        startActivity(openHome);
     }
 }
 
