@@ -232,6 +232,7 @@ public class LoginActivity extends ActionBarActivity{
     }
 
     private void openHome() {
+        Tools.hideKeyboard(this);
         finish();
         Intent openHome = new Intent(this, HomeActivity.class);
         startActivity(openHome);
