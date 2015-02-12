@@ -5,6 +5,7 @@ import android.net.Uri;
 import android.util.Log;
 
 import com.android.volley.AuthFailureError;
+import com.android.volley.DefaultRetryPolicy;
 import com.android.volley.NetworkResponse;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
@@ -43,7 +44,8 @@ public class Api {
         public static final String ACTIVES = "actives";
         public static final String RESPONSE = "response";
         public static final String INBOX = "inbox";
-        public static final String LOGIN = "j_spring_security_check";
+        public static final String j_LOGIN = "j_spring_security_check";
+        public static final String LOGIN = "login";
     }
     public interface Params{
 
@@ -80,10 +82,23 @@ public class Api {
 
     public void requestLogin(final LoginData loginData, Response.Listener<String> successListener, Response.ErrorListener errorListener) {
         Uri url = buildUrlRequest(new String[]{
-                PathUri.LOGIN
+                PathUri.j_LOGIN
         }, null);
 
         StringRequest request = new StringRequest(Request.Method.POST, url.toString(), successListener, errorListener){
+
+            @Override
+            public Map<String, String> getHeaders() throws AuthFailureError {
+                HashMap<String, String> headers = new HashMap<String, String>();
+                Uri url = buildUrlRequest(new String[]{
+                        PathUri.MAIN,
+                        PathUri.SECURITY,
+                        PathUri.LOGIN
+                }, null);
+                headers.put("Referer", url.toString());
+                return headers;
+            }
+
             @Override
             protected Map<String, String> getParams() throws AuthFailureError {
                 HashMap<String, String> params = new HashMap<String, String>();
@@ -107,6 +122,8 @@ public class Api {
             }
         };
 
+        request.setShouldCache(true);
+        request.setRetryPolicy(new DefaultRetryPolicy(5000, 1, 1f));
         requestQueue.add(request);
     }
 }
