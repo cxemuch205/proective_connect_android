@@ -10,6 +10,7 @@ import com.android.volley.NetworkResponse;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
+import com.android.volley.VolleyError;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
 
@@ -90,12 +91,16 @@ public class Api {
             @Override
             public Map<String, String> getHeaders() throws AuthFailureError {
                 HashMap<String, String> headers = new HashMap<String, String>();
-                Uri url = buildUrlRequest(new String[]{
-                        PathUri.MAIN,
-                        PathUri.SECURITY,
-                        PathUri.LOGIN
-                }, null);
-                headers.put("Referer", url.toString());
+                if (loginData != null) {
+                    if (loginData.password != null) {
+                        headers.put(Params.PASSWORD, loginData.password);
+                    }
+                    if (loginData.email != null) {
+                        headers.put(Params.USERNAME, loginData.email);
+                    }
+                    headers.put(Params.SUBMIT, Uri.encode("Логин"));
+                }
+                Log.d(TAG, "PARAMS: " + headers);
                 return headers;
             }
 
@@ -119,6 +124,18 @@ public class Api {
             protected Response<String> parseNetworkResponse(NetworkResponse response) {
                 Tools.saveCookies(context, response.headers);
                 return super.parseNetworkResponse(response);
+            }
+
+            @Override
+            protected VolleyError parseNetworkError(VolleyError volleyError) {
+                Log.d(TAG, "" + volleyError.getLocalizedMessage());
+                return super.parseNetworkError(volleyError);
+            }
+
+            @Override
+            public void setRedirectUrl(String redirectUrl) {
+                Log.d(TAG, "REDIRECT ## " + redirectUrl);
+                super.setRedirectUrl(redirectUrl);
             }
         };
 
