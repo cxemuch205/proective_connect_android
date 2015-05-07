@@ -126,6 +126,19 @@ public class Tools {
     public static void saveCookies(Context context, Map<String, String> headers) {
         if (headers != null) {
             Log.d(TAG, "HEADERS: " + headers);
+            for (Map.Entry<String, String> map : headers.entrySet()) {
+                String key = map.getKey();
+                String value = map.getValue();
+                if (key.equals("Set-Cookie")) {
+                    int indexCookie = value.indexOf(";");
+                    String cookies = value.substring(0, indexCookie);
+
+                    Log.i(TAG, "### SAVE Cookies: " + cookies);
+
+                    PreferenceManager.getInstance(context).saveCookies(cookies);
+                    break;
+                }
+            }
         }
     }
 }

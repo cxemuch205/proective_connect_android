@@ -2,16 +2,13 @@ package net.touchabillion.proectiverds;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
-import android.annotation.TargetApi;
 import android.content.Intent;
-import android.content.SharedPreferences;
-import android.os.AsyncTask;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.v7.app.ActionBarActivity;
 import android.text.TextUtils;
 import android.view.View;
-import android.view.View.OnClickListener;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
@@ -21,8 +18,10 @@ import com.android.volley.VolleyError;
 
 import net.touchabillion.contenttools.Api.Api;
 import net.touchabillion.contenttools.Constants.App;
-import net.touchabillion.contenttools.Models.LoginData;
+import net.touchabillion.contenttools.PreferenceManager;
 import net.touchabillion.contenttools.Tools;
+
+import java.util.HashMap;
 
 
 /**
@@ -30,10 +29,7 @@ import net.touchabillion.contenttools.Tools;
  */
 public class LoginActivity extends ActionBarActivity{
 
-    /**
-     * Keep track of the login task to ensure we can cancel it if requested.
-     */
-    private UserLoginTask mAuthTask = null;
+    public static final String TAG = "LoginActivity";
 
     // UI references.
     private AutoCompleteTextView mEmailView;
@@ -41,31 +37,28 @@ public class LoginActivity extends ActionBarActivity{
     private View mProgressView;
     private View mLoginFormView;
     private Api api;
-    private SharedPreferences prefs;
+    private PreferenceManager preferenceManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
-        prefs = getSharedPreferences(App.Pref.NAME, MODE_PRIVATE);
+        preferenceManager = PreferenceManager.getInstance(this);
+        api = new Api(this);
 
-        // Set up the login form.
+        initUI();
+
+        if (preferenceManager.isAuthorized()) {
+            openHome();
+        }
+    }
+
+    private void initUI() {
         mEmailView = (AutoCompleteTextView) findViewById(R.id.email);
-
         mPasswordView = (EditText) findViewById(R.id.password);
-        /*mPasswordView.setOnEditorActionListener(new TextView.OnEditorActionListener() {
-            @Override
-            public boolean onEditorAction(TextView textView, int id, KeyEvent keyEvent) {
-                if (id == R.id.login || id == EditorInfo.IME_NULL) {
-                    attemptLogin();
-                    return true;
-                }
-                return false;
-            }
-        });*/
 
         Button mEmailSignInButton = (Button) findViewById(R.id.email_sign_in_button);
-        mEmailSignInButton.setOnClickListener(new OnClickListener() {
+        mEmailSignInButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 attemptLogin();
@@ -74,12 +67,6 @@ public class LoginActivity extends ActionBarActivity{
 
         mLoginFormView = findViewById(R.id.email_login_form);
         mProgressView = findViewById(R.id.login_progress);
-        api = new Api(this);
-
-        boolean userIsLogined = prefs.getBoolean(App.Pref.USER_IS_LOGGED, false);
-        if (userIsLogined) {
-            openHome();
-        }
     }
 
     /**
@@ -88,9 +75,6 @@ public class LoginActivity extends ActionBarActivity{
      * errors are presented and no actual login attempt is made.
      */
     public void attemptLogin() {
-        if (mAuthTask != null) {
-            return;
-        }
 
         // Reset errors.
         mEmailView.setError(null);
@@ -129,10 +113,103 @@ public class LoginActivity extends ActionBarActivity{
         } else {
             // Show a progress spinner, and kick off a background task to
             // perform the user login attempt.
-            showProgress(true);
-            mAuthTask = new UserLoginTask(email, password);
-            mAuthTask.execute((Void) null);
+            enableProgress(true);
+            prepareLogin(email, password);
         }
+    }
+
+    private void prepareLogin(String email, String password) {
+        HashMap<String, String> userData = new HashMap<>();
+        userData.put(Api.Fields.USERNAME, email);
+        userData.put(Api.Fields.PASSWORD, password);
+        userData.put(Api.Fields.SUBMIT, Uri.encode(App.Api.SUBMIT_LOGIN));
+
+        api.requestLogin(userData, new Response.Listener<String>() {
+            @Override
+            public void onResponse(String response) {
+                executeResponse(response, SecurityLevel.FIRST);
+            }
+        }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                executeError(error);
+            }
+        });
+    }
+
+    private void executeError(VolleyError error) {
+        error.printStackTrace();
+        enableProgress(false);
+    }
+
+    private enum SecurityLevel{
+        FIRST, LANDING, COOKIES, USER
+    }
+
+    private void executeResponse(final String response, SecurityLevel level) {
+
+        if (response == null && level == SecurityLevel.FIRST) {
+            api.requestLanding(new Response.Listener<String>() {
+                @Override
+                public void onResponse(String response) {
+                    executeResponse(response, SecurityLevel.LANDING);
+                }
+            }, new Response.ErrorListener() {
+                @Override
+                public void onErrorResponse(VolleyError error) {
+                    executeError(error);
+                }
+            });
+        }
+
+        if (response == null && level == SecurityLevel.LANDING) {
+            api.requestCookies(new Response.Listener<String>() {
+                @Override
+                public void onResponse(String response) {
+                    executeResponse(response, SecurityLevel.COOKIES);
+                }
+            }, new Response.ErrorListener() {
+                @Override
+                public void onErrorResponse(VolleyError error) {
+                    executeError(error);
+                }
+            });
+        }
+
+        if (level == SecurityLevel.COOKIES) {
+            api.requestUser(new Response.Listener<String>() {
+                @Override
+                public void onResponse(String response) {
+                    executeResponse(response, SecurityLevel.USER);
+                }
+            }, new Response.ErrorListener() {
+                @Override
+                public void onErrorResponse(VolleyError error) {
+                    executeError(error);
+                }
+            });
+        }
+
+        if (response != null && level == SecurityLevel.USER) {
+
+        }
+
+        /*runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                enableProgress(false);
+                Log.d(TAG, "RESPONSE: " + response);
+
+                if (false) {
+                    preferenceManager.setAuthorized(true);
+                    openHome();
+                } else {
+                    preferenceManager.setAuthorized(false);
+                    mPasswordView.setError(getString(R.string.error_incorrect_password));
+                    mPasswordView.requestFocus();
+                }
+            }
+        });*/
     }
 
     private boolean isEmailValid(String email) {
@@ -143,89 +220,38 @@ public class LoginActivity extends ActionBarActivity{
         return password.length() > 4 && Tools.isValidPassword(password);
     }
 
-    /**
-     * Shows the progress UI and hides the login form.
-     */
-    @TargetApi(Build.VERSION_CODES.HONEYCOMB_MR2)
-    public void showProgress(final boolean show) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR2) {
-            int shortAnimTime = getResources().getInteger(android.R.integer.config_shortAnimTime);
+    public void enableProgress(final boolean show) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR2) {
+                    int shortAnimTime = getResources().getInteger(android.R.integer.config_shortAnimTime);
 
-            mLoginFormView.setVisibility(show ? View.GONE : View.VISIBLE);
-            mLoginFormView.animate().setDuration(shortAnimTime).alpha(
-                    show ? 0 : 1).setListener(new AnimatorListenerAdapter() {
-                @Override
-                public void onAnimationEnd(Animator animation) {
+                    mLoginFormView.setVisibility(show ? View.GONE : View.VISIBLE);
+                    mLoginFormView.animate().setDuration(shortAnimTime).alpha(
+                            show ? 0 : 1).setListener(new AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(Animator animation) {
+                            mLoginFormView.setVisibility(show ? View.GONE : View.VISIBLE);
+                        }
+                    });
+
+                    mProgressView.setVisibility(show ? View.VISIBLE : View.GONE);
+                    mProgressView.animate().setDuration(shortAnimTime).alpha(
+                            show ? 1 : 0).setListener(new AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(Animator animation) {
+                            mProgressView.setVisibility(show ? View.VISIBLE : View.GONE);
+                        }
+                    });
+                } else {
+                    // The ViewPropertyAnimator APIs are not available, so simply show
+                    // and hide the relevant UI components.
+                    mProgressView.setVisibility(show ? View.VISIBLE : View.GONE);
                     mLoginFormView.setVisibility(show ? View.GONE : View.VISIBLE);
                 }
-            });
-
-            mProgressView.setVisibility(show ? View.VISIBLE : View.GONE);
-            mProgressView.animate().setDuration(shortAnimTime).alpha(
-                    show ? 1 : 0).setListener(new AnimatorListenerAdapter() {
-                @Override
-                public void onAnimationEnd(Animator animation) {
-                    mProgressView.setVisibility(show ? View.VISIBLE : View.GONE);
-                }
-            });
-        } else {
-            // The ViewPropertyAnimator APIs are not available, so simply show
-            // and hide the relevant UI components.
-            mProgressView.setVisibility(show ? View.VISIBLE : View.GONE);
-            mLoginFormView.setVisibility(show ? View.GONE : View.VISIBLE);
-        }
-    }
-
-    /**
-     * Represents an asynchronous login/registration task used to authenticate
-     * the user.
-     */
-    public class UserLoginTask extends AsyncTask<Void, Void, Boolean> {
-
-        private final String mEmail;
-        private final String mPassword;
-
-        UserLoginTask(String email, String password) {
-            mEmail = email;
-            mPassword = password;
-        }
-
-        @Override
-        protected Boolean doInBackground(Void... params) {
-            api.requestLogin(new LoginData(mPassword, mEmail), new Response.Listener<String>(){
-                @Override
-                public void onResponse(String response) {
-
-                }
-            }, new Response.ErrorListener(){
-                @Override
-                public void onErrorResponse(VolleyError error) {
-
-                }
-            });
-            return true;
-        }
-
-        @Override
-        protected void onPostExecute(final Boolean success) {
-            mAuthTask = null;
-            showProgress(false);
-
-            if (success) {
-                //TODO: remove comment
-                //prefs.edit().putBoolean(App.Pref.USER_IS_LOGGED, success).apply();
-                openHome();
-            } else {
-                mPasswordView.setError(getString(R.string.error_incorrect_password));
-                mPasswordView.requestFocus();
             }
-        }
-
-        @Override
-        protected void onCancelled() {
-            mAuthTask = null;
-            showProgress(false);
-        }
+        });
     }
 
     private void openHome() {

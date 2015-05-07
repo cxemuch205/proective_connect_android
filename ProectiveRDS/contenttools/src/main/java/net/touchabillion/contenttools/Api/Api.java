@@ -15,7 +15,7 @@ import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
 
 import net.touchabillion.contenttools.Constants.App;
-import net.touchabillion.contenttools.Models.LoginData;
+import net.touchabillion.contenttools.PreferenceManager;
 import net.touchabillion.contenttools.Tools;
 
 import java.util.HashMap;
@@ -28,18 +28,22 @@ public class Api {
 
     public static final String TAG = "Api";
 
-    private RequestQueue requestQueue;
+    private static RequestQueue requestQueue;
     private Context context;
 
     public Api(Context context) {
-        requestQueue = Volley.newRequestQueue(context);
         this.context = context;
+        if (requestQueue == null) {
+            requestQueue = Volley.newRequestQueue(context);
+        }
     }
 
     public interface PathUri{
 
         public static final String MAIN = "main";
+
         public static final String SECURITY = "security";
+
         public static final String DEPT = "dept";
         public static final String DEPARTMENT = "department";
         public static final String ACTIVES = "actives";
@@ -47,14 +51,16 @@ public class Api {
         public static final String INBOX = "inbox";
         public static final String j_LOGIN = "j_spring_security_check";
         public static final String LOGIN = "login";
+        public static final String LANDING = "landing";
+        public static final String COOKIES = "cookies";
+        public static final String USER = "user";
     }
-    public interface Params{
-
+    public interface Fields {
         public static final String USERNAME = "j_username";
         public static final String PASSWORD = "j_password";
         public static final String SUBMIT = "submit";
+        public static final String COOKIE = "Cookie";
     }
-
     public Uri buildUrlRequest(String path[], String params[][]) {
         Uri.Builder builder = new Uri.Builder();
 
@@ -80,8 +86,7 @@ public class Api {
 
         return uri;
     }
-
-    public void requestLogin(final LoginData loginData, Response.Listener<String> successListener, Response.ErrorListener errorListener) {
+    public void requestLogin(final HashMap<String, String> userData, Response.Listener<String> successListener, Response.ErrorListener errorListener) {
         Uri url = buildUrlRequest(new String[]{
                 PathUri.j_LOGIN
         }, null);
@@ -89,58 +94,152 @@ public class Api {
         StringRequest request = new StringRequest(Request.Method.POST, url.toString(), successListener, errorListener){
 
             @Override
-            public Map<String, String> getHeaders() throws AuthFailureError {
-                HashMap<String, String> headers = new HashMap<String, String>();
-                if (loginData != null) {
-                    if (loginData.password != null) {
-                        headers.put(Params.PASSWORD, loginData.password);
-                    }
-                    if (loginData.email != null) {
-                        headers.put(Params.USERNAME, loginData.email);
-                    }
-                    headers.put(Params.SUBMIT, Uri.encode("Логин"));
-                }
-                Log.d(TAG, "PARAMS: " + headers);
-                return headers;
-            }
-
-            @Override
             protected Map<String, String> getParams() throws AuthFailureError {
-                HashMap<String, String> params = new HashMap<String, String>();
-                if (loginData != null) {
-                    if (loginData.password != null) {
-                        params.put(Params.PASSWORD, loginData.password);
-                    }
-                    if (loginData.email != null) {
-                        params.put(Params.USERNAME, loginData.email);
-                    }
-                    params.put(Params.SUBMIT, Uri.encode("Логин"));
-                }
-                Log.d(TAG, "PARAMS: " + params);
-                return params;
+                return userData;
             }
 
             @Override
             protected Response<String> parseNetworkResponse(NetworkResponse response) {
-                Tools.saveCookies(context, response.headers);
+                if (response != null && response.headers != null) {
+                    Tools.saveCookies(context, response.headers);
+                }
                 return super.parseNetworkResponse(response);
             }
 
             @Override
             protected VolleyError parseNetworkError(VolleyError volleyError) {
                 Log.d(TAG, "" + volleyError.getLocalizedMessage());
+                if (volleyError.networkResponse.statusCode == 401) {
+                    parseNetworkResponse(volleyError.networkResponse);
+                    return null;
+                }
                 return super.parseNetworkError(volleyError);
-            }
-
-            @Override
-            public void setRedirectUrl(String redirectUrl) {
-                Log.d(TAG, "REDIRECT ## " + redirectUrl);
-                super.setRedirectUrl(redirectUrl);
             }
         };
 
-        request.setShouldCache(true);
-        request.setRetryPolicy(new DefaultRetryPolicy(5000, 1, 1f));
+        request.setRetryPolicy(new DefaultRetryPolicy(3000, 3, 0));
+
+        requestQueue.add(request);
+    }
+
+    public void requestLanding(Response.Listener<String> successListener, Response.ErrorListener errorListener) {
+        Uri url = buildUrlRequest(new String[]{
+                PathUri.MAIN,
+                PathUri.SECURITY,
+                PathUri.LANDING
+        }, null);
+
+        StringRequest request = new StringRequest(Request.Method.GET, url.toString(), successListener, errorListener){
+
+            @Override
+            public Map<String, String> getHeaders() throws AuthFailureError {
+                HashMap<String, String> headers = new HashMap<>();
+                headers.put(Fields.COOKIE, PreferenceManager.getInstance(context).getCookies());
+                return headers;
+            }
+
+            /*@Override
+            protected Response<String> parseNetworkResponse(NetworkResponse response) {
+                if (response != null && response.headers != null) {
+                    Tools.saveCookies(context, response.headers);
+                }
+                return super.parseNetworkResponse(response);
+            }*/
+
+            @Override
+            protected VolleyError parseNetworkError(VolleyError volleyError) {
+                Log.d(TAG, "" + volleyError.getLocalizedMessage());
+                if (volleyError.networkResponse.statusCode == 401) {
+                    parseNetworkResponse(volleyError.networkResponse);
+                    return null;
+                }
+                return super.parseNetworkError(volleyError);
+            }
+        };
+
+        request.setRetryPolicy(new DefaultRetryPolicy(3000, 3, 0));
+
+        requestQueue.add(request);
+    }
+
+    public void requestCookies(Response.Listener<String> successListener, Response.ErrorListener errorListener) {
+        Uri url = buildUrlRequest(new String[]{
+                PathUri.MAIN,
+                PathUri.SECURITY,
+                PathUri.COOKIES
+        }, null);
+
+        StringRequest request = new StringRequest(Request.Method.GET, url.toString(), successListener, errorListener){
+
+            @Override
+            public Map<String, String> getHeaders() throws AuthFailureError {
+                HashMap<String, String> headers = new HashMap<>();
+                headers.put(Fields.COOKIE, PreferenceManager.getInstance(context).getCookies());
+                return headers;
+            }
+
+            /*@Override
+            protected Response<String> parseNetworkResponse(NetworkResponse response) {
+                if (response != null && response.headers != null) {
+                    Tools.saveCookies(context, response.headers);
+                }
+                return super.parseNetworkResponse(response);
+            }*/
+
+            @Override
+            protected VolleyError parseNetworkError(VolleyError volleyError) {
+                Log.d(TAG, "" + volleyError.getLocalizedMessage());
+                if (volleyError.networkResponse.statusCode == 401) {
+                    parseNetworkResponse(volleyError.networkResponse);
+                    return null;
+                }
+                return super.parseNetworkError(volleyError);
+            }
+        };
+
+        request.setRetryPolicy(new DefaultRetryPolicy(3000, 3, 0));
+
+        requestQueue.add(request);
+    }
+
+    public void requestUser(Response.Listener<String> successListener, Response.ErrorListener errorListener) {
+        Uri url = buildUrlRequest(new String[]{
+                PathUri.MAIN,
+                PathUri.SECURITY,
+                PathUri.USER,
+                ""
+        }, null);
+
+        StringRequest request = new StringRequest(Request.Method.GET, url.toString(), successListener, errorListener){
+
+            @Override
+            public Map<String, String> getHeaders() throws AuthFailureError {
+                HashMap<String, String> headers = new HashMap<>();
+                headers.put(Fields.COOKIE, PreferenceManager.getInstance(context).getCookies());
+                return headers;
+            }
+
+            /*@Override
+            protected Response<String> parseNetworkResponse(NetworkResponse response) {
+                if (response != null && response.headers != null) {
+                    Tools.saveCookies(context, response.headers);
+                }
+                return super.parseNetworkResponse(response);
+            }*/
+
+            @Override
+            protected VolleyError parseNetworkError(VolleyError volleyError) {
+                Log.d(TAG, "" + volleyError.getLocalizedMessage());
+                if (volleyError.networkResponse.statusCode == 401) {
+                    parseNetworkResponse(volleyError.networkResponse);
+                    return null;
+                }
+                return super.parseNetworkError(volleyError);
+            }
+        };
+
+        request.setRetryPolicy(new DefaultRetryPolicy(3000, 3, 0));
+
         requestQueue.add(request);
     }
 }
