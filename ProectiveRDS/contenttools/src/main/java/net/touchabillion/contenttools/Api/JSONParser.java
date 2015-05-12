@@ -1,5 +1,8 @@
 package net.touchabillion.contenttools.Api;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+
 /**
  * Created by daniil on 2/12/15.
  */
@@ -7,16 +10,12 @@ public class JSONParser {
 
     public static final String TAG = "JSONParser";
 
-    private static JSONParser instance;
+    private static Gson gson;
 
-    public static JSONParser getInstance() {
-        if (instance == null) {
-            instance = new JSONParser();
+    public static Gson getGson() {
+        if (gson == null) {
+            gson = new GsonBuilder().setPrettyPrinting().create();
         }
-        return instance;
-    }
-
-    public interface Fields{
-        public static final String NAME = "name";
+        return gson;
     }
 }

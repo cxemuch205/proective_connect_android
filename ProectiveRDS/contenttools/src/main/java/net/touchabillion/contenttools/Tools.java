@@ -130,12 +130,16 @@ public class Tools {
                 String key = map.getKey();
                 String value = map.getValue();
                 if (key.equals("Set-Cookie")) {
-                    int indexCookie = value.indexOf(";");
-                    String cookies = value.substring(0, indexCookie);
+                    if (value.contains(";")) {
+                        int indexCookie = value.indexOf(";");
+                        String cookies = value.substring(0, indexCookie);
 
-                    Log.i(TAG, "### SAVE Cookies: " + cookies);
+                        Log.i(TAG, "### SAVE Cookies: " + cookies);
 
-                    PreferenceManager.getInstance(context).saveCookies(cookies);
+                        PreferenceManager.getInstance(context).saveCookies(cookies);
+                    } else {
+                        Log.e(TAG, "NO HAVE COOKIES");
+                    }
                     break;
                 }
             }
